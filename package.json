@@ -1,0 +1,44 @@
+{
+  "name": "patscope",
+  "version": "0.1.0",
+  "description": "See the blast radius of your GitHub token — and shrink it.",
+  "type": "module",
+  "bin": {
+    "patscope": "dist/patscope"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "build": "bun run scripts/build.ts",
+    "build:all": "bun run scripts/build-all.ts",
+    "docs": "bun run scripts/generate-docs.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun test"
+  },
+  "keywords": [
+    "github",
+    "security",
+    "pat",
+    "token",
+    "least-privilege",
+    "cli",
+    "devsecops"
+  ],
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "typescript": "^7.0.2"
+  }
+}

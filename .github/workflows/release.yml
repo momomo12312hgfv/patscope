@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            asset: patscope-linux-x64
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            asset: patscope-linux-arm64
+          - os: macos-latest
+            target: bun-darwin-x64
+            asset: patscope-darwin-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            asset: patscope-darwin-arm64
+          - os: windows-latest
+            target: bun-windows-x64
+            asset: patscope-windows-x64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Build
+        shell: bash
+        run: bun build --compile --minify --target=${{ matrix.target }} ./src/cli.ts --outfile dist/${{ matrix.asset }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          generate_release_notes: true
