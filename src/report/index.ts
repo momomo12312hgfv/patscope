@@ -1,9 +1,10 @@
 import type { Report } from "../types";
 import { renderJson } from "./json";
 import { renderMarkdown } from "./markdown";
+import { renderSarif } from "./sarif";
 import { renderTerminal } from "./terminal";
 
-export type ReportFormat = "terminal" | "markdown" | "json";
+export type ReportFormat = "terminal" | "markdown" | "json" | "sarif";
 
 export function renderReport(report: Report, format: ReportFormat, color: boolean): string {
   switch (format) {
@@ -13,11 +14,13 @@ export function renderReport(report: Report, format: ReportFormat, color: boolea
       return renderMarkdown(report);
     case "json":
       return renderJson(report);
+    case "sarif":
+      return renderSarif(report);
     default:
       throw new Error(`Unsupported report format: ${String(format)}`);
   }
 }
 
 export function isReportFormat(value: string): value is ReportFormat {
-  return value === "terminal" || value === "markdown" || value === "json";
+  return value === "terminal" || value === "markdown" || value === "json" || value === "sarif";
 }

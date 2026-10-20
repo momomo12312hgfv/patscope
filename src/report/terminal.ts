@@ -42,22 +42,34 @@ export function renderTerminal(report: Report, color: boolean): string {
   const lines: string[] = [];
 
   lines.push(`${c.bold("patscope")} ${pkg.version}`);
-  lines.push(`${c.dim("identity")}   ${identityLine(report)}`);
+  const label = (value: string) => c.dim(value.padEnd(11));
+  lines.push(`${label("identity")} ${identityLine(report)}`);
   lines.push(
-    `${c.dim("token")}      ${report.token.redacted} ${c.dim(`(${report.token.typeLabel})`)}`,
+    `${label("token")} ${report.token.redacted} ${c.dim(`(${report.token.typeLabel})`)}`,
   );
   lines.push(
-    `${c.dim("scopes")}     ${report.token.scopes.length > 0 ? report.token.scopes.length : "none"}`,
+    `${label("scopes")} ${report.token.scopes.length > 0 ? report.token.scopes.length : "none"}`,
   );
-  lines.push(`${c.dim("source")}     ${report.token.source}`);
+  if (report.token.permissions.length > 0) {
+    lines.push(
+      `${label("permissions")} ${report.token.permissions.length} ${c.dim("(self-reported)")}`,
+    );
+  }
+  lines.push(`${label("source")} ${report.token.source}`);
+  if (report.repositories.length > 0) {
+    const accessible = report.repositories.filter((repo) => repo.accessible).length;
+    lines.push(
+      `${label("repos")} ${report.repositories.length} probed, ${accessible} accessible`,
+    );
+  }
   if (report.orgs.length > 0) {
     const shown = report.orgs.slice(0, 5).map((org) => org.login);
     const suffix = report.orgs.length > 5 ? ` +${report.orgs.length - 5} more` : "";
-    lines.push(`${c.dim("orgs")}       ${shown.join(", ")}${suffix}`);
+    lines.push(`${label("orgs")} ${shown.join(", ")}${suffix}`);
   }
   if (report.rateLimit?.remaining != null && report.rateLimit.limit != null) {
     lines.push(
-      `${c.dim("rate limit")} ${report.rateLimit.remaining}/${report.rateLimit.limit}`,
+      `${label("rate limit")} ${report.rateLimit.remaining}/${report.rateLimit.limit}`,
     );
   }
 

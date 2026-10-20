@@ -23,7 +23,7 @@ If private reporting is unavailable, open a minimal issue asking for a private c
 
 In scope:
 
-- Token disclosure through output, errors, logs or reports
+- Token disclosure through CLI output, Action logs, errors, reports or SARIF
 - Unexpected network destinations
 - Write operations performed by a scan
 - Command injection or path traversal

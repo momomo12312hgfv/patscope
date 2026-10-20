@@ -28,6 +28,13 @@ export function renderMarkdown(report: Report): string {
   lines.push(`| Token | \`${cell(report.token.redacted)}\` (${cell(report.token.typeLabel)}) |`);
   lines.push(`| Source | ${cell(report.token.source)} |`);
   lines.push(`| Scopes | ${report.token.scopes.length > 0 ? report.token.scopes.map((scope) => `\`${scope}\``).join(", ") : "none"} |`);
+  if (report.token.permissions.length > 0) {
+    lines.push(
+      `| Permissions (self-reported) | ${report.token.permissions
+        .map((permission) => `\`${permission.permission}=${permission.access}\``)
+        .join(", ")} |`,
+    );
+  }
   if (report.orgs.length > 0) {
     lines.push(`| Organizations | ${report.orgs.map((org) => cell(org.login)).join(", ")} |`);
   }
@@ -67,7 +74,24 @@ export function renderMarkdown(report: Report): string {
   } else {
     lines.push("## Capabilities");
     lines.push("");
-    lines.push("No capabilities matched the known scope matrix.");
+    lines.push("No capabilities matched the known capability matrix.");
+    lines.push("");
+  }
+
+  if (report.repositories.length > 0) {
+    lines.push("## Repositories");
+    lines.push("");
+    lines.push("| Repository | Access | Visibility | Status |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const repository of report.repositories) {
+      const access = repository.accessible ? "accessible" : "not accessible";
+      const visibility =
+        repository.private === null ? "unknown" : repository.private ? "private" : "public";
+      const status = repository.status === null ? repository.error ?? "—" : String(repository.status);
+      lines.push(
+        `| ${cell(repository.fullName)} | ${access} | ${visibility} | ${cell(status)} |`,
+      );
+    }
     lines.push("");
   }
 

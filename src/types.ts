@@ -11,6 +11,23 @@ export type TokenType =
   | "github-app-refresh"
   | "unknown";
 
+export type PermissionAccess = "read" | "write";
+
+export interface PermissionGrant {
+  permission: string;
+  access: PermissionAccess;
+}
+
+export interface PermissionDefinition {
+  name: string;
+  title: string;
+  description: string;
+  category: string;
+  access: PermissionAccess[];
+  readCapabilities: string[];
+  writeCapabilities: string[];
+}
+
 export interface ScopeDefinition {
   name: string;
   description: string;
@@ -26,6 +43,7 @@ export interface CapabilityDefinition {
   severity: Severity;
   category: string;
   scopes: string[];
+  permissions: string[];
 }
 
 export interface Capability {
@@ -58,7 +76,16 @@ export interface TokenInfo {
   typeLabel: string;
   redacted: string;
   scopes: string[];
+  permissions: PermissionGrant[];
   source: string;
+}
+
+export interface RepositoryInfo {
+  fullName: string;
+  private: boolean | null;
+  accessible: boolean;
+  status: number | null;
+  error: string | null;
 }
 
 export interface Identity {
@@ -82,11 +109,12 @@ export interface RateLimitInfo {
 }
 
 export interface Report {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   identity: Identity | null;
   token: TokenInfo;
   orgs: Org[];
+  repositories: RepositoryInfo[];
   capabilities: Capability[];
   score: ScoreResult;
   scoreKnown: boolean;
@@ -98,6 +126,8 @@ export interface ScanOptions {
   token?: string;
   tokenType?: TokenType;
   scopes?: string[];
+  permissions?: PermissionGrant[];
+  repos?: string[];
   login?: string;
   source: string;
   offline: boolean;

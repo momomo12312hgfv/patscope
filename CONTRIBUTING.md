@@ -16,7 +16,8 @@ bun test
 
 - Run `bun run typecheck` and `bun test`.
 - Add or update tests for behavior changes.
-- Keep the scope matrix and `docs/scope-matrix.md` in sync. Run `bun run docs` after changing `src/scopes.ts` or `src/capabilities.ts`.
+- Keep the scope and permission matrices in sync. Run `bun run docs` after changing `src/scopes.ts`, `src/permissions.ts` or `src/capabilities.ts`.
+- Run `bun run build:action` after changing Action code and commit `action-dist/index.cjs`.
 - Do not commit tokens, `.env` files or generated reports that contain real account data.
 - Keep changes focused. One pull request should solve one problem.
 
@@ -27,6 +28,21 @@ bun test
 3. Run `bun run docs` to regenerate the tables.
 4. Add a test in `test/capabilities.test.ts`.
 5. Cite the GitHub documentation in the pull request description.
+
+## Adding a fine-grained permission
+
+1. Add the permission to `src/permissions.ts`. Use a namespaced name such as `repo.contents` or `org.members`.
+2. Map its read and write access to capability IDs.
+3. Add any new capability to `src/capabilities.ts`.
+4. Run `bun run docs` to regenerate `docs/permission-matrix.md`.
+5. Add a test in `test/permissions.test.ts`.
+
+## Changing the GitHub Action
+
+1. Update `src/action.ts` or `action.yml`.
+2. Run `bun run build:action` and commit `action-dist/index.cjs`.
+3. Run `bun test`; the Action tests cover reports, outputs and failure thresholds.
+4. Update `docs/action.md` if inputs or outputs change.
 
 ## Adding a token type
 

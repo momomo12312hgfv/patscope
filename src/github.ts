@@ -1,7 +1,8 @@
+import pkg from "../package.json";
 import type { Org } from "./types";
 
 const API_BASE = "https://api.github.com";
-const USER_AGENT = "patscope/0.1.0";
+const USER_AGENT = `patscope/${pkg.version}`;
 
 export interface GitHubUser {
   login: string;
@@ -21,6 +22,11 @@ export interface GitHubOrg {
 export interface InstallationRepositories {
   total_count: number;
   repositories: Array<{ full_name: string }>;
+}
+
+export interface GitHubRepo {
+  full_name: string;
+  private: boolean;
 }
 
 export interface ApiResponse<T> {
@@ -95,6 +101,22 @@ export class GitHubClient {
 
   getInstallationRepositories(): Promise<ApiResponse<InstallationRepositories>> {
     return this.request<InstallationRepositories>("/installation/repositories?per_page=1");
+  }
+
+  getRepo(fullName: string): Promise<ApiResponse<GitHubRepo>> {
+    const [owner, repo] = fullName.split("/");
+    if (!owner || !repo) {
+      return Promise.resolve({
+        ok: false,
+        status: 400,
+        headers: new Headers(),
+        data: null,
+        error: "Invalid repository name. Expected owner/repo.",
+      });
+    }
+    return this.request<GitHubRepo>(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+    );
   }
 }
 

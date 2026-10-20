@@ -9,8 +9,23 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    name: Verify release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build:action
+      - run: git diff --exit-code action-dist/index.cjs
+
   build:
     name: ${{ matrix.asset }}
+    needs: verify
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

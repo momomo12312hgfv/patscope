@@ -1,7 +1,8 @@
+import { PERMISSION_DEFINITIONS, permissionGrantLabel } from "./permissions";
 import { SCOPE_DEFINITIONS } from "./scopes";
-import type { Capability, CapabilityDefinition, Severity } from "./types";
+import type { Capability, CapabilityDefinition, PermissionGrant, Severity } from "./types";
 
-type CapabilityMeta = Omit<CapabilityDefinition, "scopes">;
+type CapabilityMeta = Omit<CapabilityDefinition, "scopes" | "permissions">;
 
 const CAPABILITY_META: CapabilityMeta[] = [
   {
@@ -44,6 +45,27 @@ const CAPABILITY_META: CapabilityMeta[] = [
     title: "Modify GitHub Actions workflows",
     description: "Add or change workflow files, which can execute code and expose repository secrets.",
     severity: "high",
+    category: "actions",
+  },
+  {
+    id: "actions:manage",
+    title: "Manage Actions runs",
+    description: "Cancel or rerun workflows, delete artifacts and caches, and disrupt or extract CI data.",
+    severity: "high",
+    category: "actions",
+  },
+  {
+    id: "checks:write",
+    title: "Write check results",
+    description: "Create or update check runs, which can fake CI results and bypass required checks.",
+    severity: "high",
+    category: "actions",
+  },
+  {
+    id: "variables:manage",
+    title: "Manage Actions variables",
+    description: "Change repository or organization variables used by workflows.",
+    severity: "medium",
     category: "actions",
   },
   {
@@ -149,6 +171,13 @@ const CAPABILITY_META: CapabilityMeta[] = [
     title: "Read SSH and GPG keys",
     description: "Enumerate public keys associated with the account.",
     severity: "low",
+    category: "identity",
+  },
+  {
+    id: "tokens:manage",
+    title: "Manage personal access tokens",
+    description: "Create, approve or revoke fine-grained personal access tokens for the organization.",
+    severity: "critical",
     category: "identity",
   },
   {
@@ -278,6 +307,34 @@ const CAPABILITY_META: CapabilityMeta[] = [
     category: "repository",
   },
   {
+    id: "issues:write",
+    title: "Manage issues",
+    description: "Create, edit or close issues and comments, which can be used for social engineering.",
+    severity: "medium",
+    category: "repository",
+  },
+  {
+    id: "pages:write",
+    title: "Publish GitHub Pages",
+    description: "Deploy content to a GitHub Pages site, potentially impersonating the project.",
+    severity: "medium",
+    category: "repository",
+  },
+  {
+    id: "security:write",
+    title: "Dismiss security findings",
+    description: "Dismiss or hide code scanning, secret scanning and Dependabot alerts.",
+    severity: "high",
+    category: "repository",
+  },
+  {
+    id: "attestations:write",
+    title: "Write artifact attestations",
+    description: "Publish supply-chain attestations that downstream users may trust.",
+    severity: "high",
+    category: "packages",
+  },
+  {
     id: "invitations:write",
     title: "Manage repository invitations",
     description: "Accept or decline repository invitations.",
@@ -298,6 +355,18 @@ export const CAPABILITY_DEFINITIONS: CapabilityDefinition[] = CAPABILITY_META.ma
   scopes: Object.values(SCOPE_DEFINITIONS)
     .filter((scope) => scope.capabilities.includes(capability.id))
     .map((scope) => scope.name)
+    .sort(),
+  permissions: Object.values(PERMISSION_DEFINITIONS)
+    .flatMap((permission) => {
+      const grants: string[] = [];
+      if (permission.readCapabilities.includes(capability.id)) {
+        grants.push(`${permission.name}=read`);
+      }
+      if (permission.writeCapabilities.includes(capability.id)) {
+        grants.push(`${permission.name}=write`);
+      }
+      return grants;
+    })
     .sort(),
 })).sort((a, b) => a.id.localeCompare(b.id));
 
@@ -325,6 +394,28 @@ export function highestSeverity(capabilities: Capability[]): Severity | null {
   );
 }
 
+function buildCapabilities(matched: Map<string, Set<string>>): Capability[] {
+  return [...matched.entries()]
+    .map(([capabilityId, matchedBy]) => {
+      const definition = CAPABILITY_BY_ID[capabilityId];
+      if (!definition) {
+        throw new Error(`Unknown capability "${capabilityId}" in the capability matrix.`);
+      }
+      return {
+        id: definition.id,
+        title: definition.title,
+        description: definition.description,
+        severity: definition.severity,
+        category: definition.category,
+        matchedScopes: [...matchedBy].sort(),
+      };
+    })
+    .sort(
+      (a, b) =>
+        compareSeverity(a.severity, b.severity) || a.title.localeCompare(b.title),
+    );
+}
+
 export function resolveCapabilities(scopes: string[]): Capability[] {
   const matched = new Map<string, Set<string>>();
 
@@ -339,25 +430,43 @@ export function resolveCapabilities(scopes: string[]): Capability[] {
     }
   }
 
-  return [...matched.entries()]
-    .map(([capabilityId, matchedScopes]) => {
-      const definition = CAPABILITY_BY_ID[capabilityId];
-      if (!definition) {
-        throw new Error(`Unknown capability "${capabilityId}" in the scope matrix.`);
+  return buildCapabilities(matched);
+}
+
+export function resolveCapabilitiesFromPermissions(grants: PermissionGrant[]): Capability[] {
+  const matched = new Map<string, Set<string>>();
+
+  for (const grant of grants) {
+    const permission = PERMISSION_DEFINITIONS[grant.permission];
+    if (!permission) continue;
+
+    const capabilityIds =
+      grant.access === "read" ? permission.readCapabilities : permission.writeCapabilities;
+
+    for (const capabilityId of capabilityIds) {
+      const set = matched.get(capabilityId) ?? new Set<string>();
+      set.add(permissionGrantLabel(grant));
+      matched.set(capabilityId, set);
+    }
+  }
+
+  return buildCapabilities(matched);
+}
+
+export function mergeCapabilities(...groups: Capability[][]): Capability[] {
+  const matched = new Map<string, Set<string>>();
+
+  for (const group of groups) {
+    for (const capability of group) {
+      const set = matched.get(capability.id) ?? new Set<string>();
+      for (const source of capability.matchedScopes) {
+        set.add(source);
       }
-      return {
-        id: definition.id,
-        title: definition.title,
-        description: definition.description,
-        severity: definition.severity,
-        category: definition.category,
-        matchedScopes: [...matchedScopes].sort(),
-      };
-    })
-    .sort(
-      (a, b) =>
-        compareSeverity(a.severity, b.severity) || a.title.localeCompare(b.title),
-    );
+      matched.set(capability.id, set);
+    }
+  }
+
+  return buildCapabilities(matched);
 }
 
 export function capabilityNames(): string[] {

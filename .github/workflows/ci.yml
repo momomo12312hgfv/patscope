@@ -30,3 +30,9 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build
+      - name: Build Action bundle
+        if: runner.os == 'Linux'
+        run: bun run build:action
+      - name: Check Action bundle is up to date
+        if: runner.os == 'Linux'
+        run: git diff --exit-code action-dist/index.cjs

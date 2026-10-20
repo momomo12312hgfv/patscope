@@ -1,6 +1,6 @@
 {
   "name": "patscope",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "See the blast radius of your GitHub token — and shrink it.",
   "type": "module",
   "bin": {
@@ -8,6 +8,8 @@
   },
   "files": [
     "dist",
+    "action-dist",
+    "action.yml",
     "README.md",
     "LICENSE"
   ],
@@ -15,6 +17,7 @@
     "dev": "bun run src/cli.ts",
     "build": "bun run scripts/build.ts",
     "build:all": "bun run scripts/build-all.ts",
+    "build:action": "bun run scripts/build-action.ts",
     "docs": "bun run scripts/generate-docs.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",

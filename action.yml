@@ -1,0 +1,44 @@
+name: patscope
+description: See the blast radius of a GitHub token and fail the job when it is too risky.
+author: momomo12312hgfv
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  token:
+    description: GitHub token to scan. Use a dedicated, low-privilege token.
+    required: true
+  fail-on:
+    description: Minimum severity that fails the job (low, medium, high, critical).
+    required: false
+    default: high
+  format:
+    description: Output format (markdown, json, sarif).
+    required: false
+    default: markdown
+  output-file:
+    description: Report path. Defaults to patscope-report.md or patscope-report.sarif.
+    required: false
+    default: ""
+  permissions:
+    description: Self-reported fine-grained permissions, e.g. contents=write,metadata=read.
+    required: false
+    default: ""
+  repos:
+    description: Comma-separated owner/repo list to probe for read access.
+    required: false
+    default: ""
+
+outputs:
+  score:
+    description: Blast radius score from 0 to 100.
+  level:
+    description: Risk level (low, medium, high or critical).
+  report:
+    description: Path to the generated report file.
+
+runs:
+  using: node24
+  main: action-dist/index.cjs

@@ -15,7 +15,7 @@ describe("renderTerminal", () => {
   test("includes the score and top risks", async () => {
     const output = renderReport(await makeReport(), "terminal", false);
 
-    expect(output).toContain("patscope 0.1.0");
+    expect(output).toContain("patscope 0.2.0");
     expect(output).toContain("Blast radius");
     expect(output).toContain("CRITICAL");
     expect(output).toContain("Delete repositories");
@@ -45,7 +45,7 @@ describe("renderJson", () => {
       score: { level: string; value: number };
     };
 
-    expect(parsed.schemaVersion).toBe(1);
+    expect(parsed.schemaVersion).toBe(2);
     expect(parsed.scoreKnown).toBe(true);
     expect(parsed.identity.login).toBe("octocat");
     expect(parsed.token.scopes).toEqual(["delete_repo", "repo"]);

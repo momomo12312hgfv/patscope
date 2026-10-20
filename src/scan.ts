@@ -1,17 +1,27 @@
-import { resolveCapabilities } from "./capabilities";
+import {
+  mergeCapabilities,
+  resolveCapabilities,
+  resolveCapabilitiesFromPermissions,
+} from "./capabilities";
 import { GitHubClient, orgsFromResponse, type GitHubUser } from "./github";
+import { PERMISSION_DEFINITIONS } from "./permissions";
 import { evaluateCapabilities } from "./score";
 import { SCOPE_DEFINITIONS } from "./scopes";
 import { detectTokenType, normalizeScopes, redactToken, tokenTypeLabel } from "./token";
 import type {
   Identity,
   Org,
+  PermissionGrant,
   RateLimitInfo,
   Report,
+  RepositoryInfo,
   ScanOptions,
   ScoreResult,
   TokenType,
 } from "./types";
+
+const MAX_REPO_PROBES = 50;
+const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 function identityFromUser(user: GitHubUser): Identity {
   return {
@@ -38,24 +48,81 @@ function rateLimitFromHeaders(headers: Headers): RateLimitInfo | null {
   };
 }
 
+function validPermissions(grants: PermissionGrant[]): {
+  valid: PermissionGrant[];
+  unknown: PermissionGrant[];
+} {
+  const valid: PermissionGrant[] = [];
+  const unknown: PermissionGrant[] = [];
+
+  for (const grant of grants) {
+    if (PERMISSION_DEFINITIONS[grant.permission]) {
+      valid.push(grant);
+    } else {
+      unknown.push(grant);
+    }
+  }
+
+  return { valid, unknown };
+}
+
+async function probeRepositories(
+  client: GitHubClient,
+  repos: string[],
+): Promise<RepositoryInfo[]> {
+  const results: RepositoryInfo[] = [];
+
+  for (const fullName of repos) {
+    if (
+      !REPO_PATTERN.test(fullName) ||
+      fullName.split("/").some((part) => part === "." || part === "..")
+    ) {
+      results.push({
+        fullName,
+        private: null,
+        accessible: false,
+        status: null,
+        error: "Invalid repository name. Expected owner/repo.",
+      });
+      continue;
+    }
+
+    const response = await client.getRepo(fullName);
+    results.push({
+      fullName,
+      private: response.data?.private ?? null,
+      accessible: response.ok,
+      status: response.status,
+      error: response.ok ? null : response.error,
+    });
+  }
+
+  return results;
+}
+
 function buildReport(
   options: ScanOptions,
   data: {
     identity: Identity | null;
     tokenType: TokenType;
     scopes: string[];
+    permissions: PermissionGrant[];
+    repositories: RepositoryInfo[];
     orgs: Org[];
     warnings: string[];
     rateLimit: RateLimitInfo | null;
     scoreKnown: boolean;
   },
 ): Report {
-  const capabilities = resolveCapabilities(data.scopes);
+  const capabilities = mergeCapabilities(
+    resolveCapabilities(data.scopes),
+    resolveCapabilitiesFromPermissions(data.permissions),
+  );
   const score: ScoreResult = evaluateCapabilities(capabilities);
   const tokenValue = options.token ?? "";
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     identity: data.identity,
     token: {
@@ -63,9 +130,11 @@ function buildReport(
       typeLabel: tokenTypeLabel(data.tokenType),
       redacted: tokenValue ? redactToken(tokenValue) : "(not provided)",
       scopes: data.scopes,
+      permissions: data.permissions,
       source: options.source,
     },
     orgs: data.orgs,
+    repositories: data.repositories,
     capabilities,
     score,
     warnings: data.warnings,
@@ -76,16 +145,27 @@ function buildReport(
 
 function offlineReport(options: ScanOptions): Report {
   const scopes = [...new Set(options.scopes ?? [])].sort();
+  const { valid: permissions, unknown: unknownPermissions } = validPermissions(
+    options.permissions ?? [],
+  );
   const warnings: string[] = [
-    "Offline mode: capabilities are computed only from the scopes you provided. No API calls were made.",
+    "Offline mode: capabilities are computed only from the scopes and permissions you provided. No API calls were made.",
   ];
 
-  const unknown = scopes.filter((scope) => !SCOPE_DEFINITIONS[scope]);
-  if (unknown.length > 0) {
-    warnings.push(`Unknown scopes were ignored: ${unknown.join(", ")}.`);
+  if (scopes.length === 0 && permissions.length === 0) {
+    warnings.push("No scopes or permissions were provided, so no capabilities could be evaluated.");
   }
-  if (scopes.length === 0) {
-    warnings.push("No scopes were provided, so no capabilities could be evaluated.");
+
+  const unknownScopes = scopes.filter((scope) => !SCOPE_DEFINITIONS[scope]);
+  if (unknownScopes.length > 0) {
+    warnings.push(`Unknown scopes were ignored: ${unknownScopes.join(", ")}.`);
+  }
+  if (unknownPermissions.length > 0) {
+    warnings.push(
+      `Unknown permissions were ignored: ${unknownPermissions
+        .map((grant) => `${grant.permission}=${grant.access}`)
+        .join(", ")}.`,
+    );
   }
 
   const identity: Identity | null = options.login
@@ -103,6 +183,8 @@ function offlineReport(options: ScanOptions): Report {
     identity,
     tokenType: options.tokenType ?? "unknown",
     scopes,
+    permissions,
+    repositories: [],
     orgs: [],
     warnings,
     rateLimit: null,
@@ -130,6 +212,17 @@ export async function scanToken(options: ScanOptions): Promise<Report> {
   const client = new GitHubClient(token);
   const warnings: string[] = [];
   const userResponse = await client.getUser();
+  const { valid: suppliedPermissions, unknown: unknownPermissions } = validPermissions(
+    options.permissions ?? [],
+  );
+
+  if (unknownPermissions.length > 0) {
+    warnings.push(
+      `Unknown permissions were ignored: ${unknownPermissions
+        .map((grant) => `${grant.permission}=${grant.access}`)
+        .join(", ")}.`,
+    );
+  }
 
   if (userResponse.status === 401) {
     throw new Error("GitHub rejected the token (401). It may be expired, revoked or mistyped.");
@@ -141,16 +234,18 @@ export async function scanToken(options: ScanOptions): Promise<Report> {
       if (repositories.ok) {
         const count = repositories.data?.total_count ?? 0;
         warnings.push(
-          `GitHub App installation token detected. Repository access: ${count} repositor${count === 1 ? "y" : "ies"}. Installation permissions are not exposed by the API in v0.1.`,
+          `GitHub App installation token detected. Repository access: ${count} repositor${count === 1 ? "y" : "ies"}. Installation permissions are not exposed by the API in v0.2.`,
         );
         return buildReport(options, {
           identity: null,
           tokenType,
           scopes: [],
+          permissions: suppliedPermissions,
+          repositories: [],
           orgs: [],
           warnings,
           rateLimit: rateLimitFromHeaders(userResponse.headers),
-          scoreKnown: false,
+          scoreKnown: suppliedPermissions.length > 0,
         });
       }
     }
@@ -170,10 +265,11 @@ export async function scanToken(options: ScanOptions): Promise<Report> {
   const scopes = normalizeScopes(userResponse.headers.get("x-oauth-scopes"));
   const acceptedPermissions = userResponse.headers.get("x-accepted-github-permissions");
   const suppliedScopes = options.scopes ?? [];
+  const apiScopes = tokenType === "fine-grained-pat" ? [] : scopes;
   const effectiveScopes =
     suppliedScopes.length > 0
-      ? [...new Set([...scopes, ...suppliedScopes])].sort()
-      : scopes;
+      ? [...new Set([...apiScopes, ...suppliedScopes])].sort()
+      : apiScopes;
 
   if (suppliedScopes.length > 0) {
     warnings.push(
@@ -183,7 +279,9 @@ export async function scanToken(options: ScanOptions): Promise<Report> {
 
   if (tokenType === "fine-grained-pat") {
     warnings.push(
-      "Fine-grained PAT permissions are not exposed by the GitHub API. v0.1 reports the token type and identity only; use --offline --scopes to evaluate known permissions.",
+      suppliedPermissions.length > 0
+        ? "Fine-grained PAT permissions are self-reported via --permissions and cannot be verified through the GitHub API."
+        : "Fine-grained PAT permissions are not exposed by the GitHub API. Use --permissions to provide them; without them the score is marked unknown.",
     );
     if (acceptedPermissions) {
       warnings.push(`GitHub reported accepted permissions for /user: ${acceptedPermissions}`);
@@ -198,10 +296,19 @@ export async function scanToken(options: ScanOptions): Promise<Report> {
     );
   }
 
-  const unknown = effectiveScopes.filter((scope) => !SCOPE_DEFINITIONS[scope]);
-  if (unknown.length > 0) {
-    warnings.push(`Unknown scopes were ignored: ${unknown.join(", ")}.`);
+  const unknownScopes = effectiveScopes.filter((scope) => !SCOPE_DEFINITIONS[scope]);
+  if (unknownScopes.length > 0) {
+    warnings.push(`Unknown scopes were ignored: ${unknownScopes.join(", ")}.`);
   }
+
+  let repoList = [...new Set((options.repos ?? []).map((repo) => repo.trim()).filter(Boolean))];
+  if (repoList.length > MAX_REPO_PROBES) {
+    warnings.push(
+      `Only the first ${MAX_REPO_PROBES} repositories were probed; ${repoList.length - MAX_REPO_PROBES} were skipped.`,
+    );
+    repoList = repoList.slice(0, MAX_REPO_PROBES);
+  }
+  const repositories = await probeRepositories(client, repoList);
 
   const orgsResponse = await client.getOrgs();
   if (!orgsResponse.ok) {
@@ -212,12 +319,15 @@ export async function scanToken(options: ScanOptions): Promise<Report> {
     tokenType === "classic-pat" ||
     tokenType === "oauth" ||
     (tokenType === "unknown" && scopes.length > 0) ||
-    suppliedScopes.length > 0;
+    suppliedScopes.length > 0 ||
+    suppliedPermissions.length > 0;
 
   return buildReport(options, {
     identity: identityFromUser(user),
     tokenType,
     scopes: effectiveScopes,
+    permissions: suppliedPermissions,
+    repositories,
     orgs: orgsFromResponse(orgsResponse.data),
     warnings,
     rateLimit: rateLimitFromHeaders(userResponse.headers),
