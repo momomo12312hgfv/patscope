@@ -186,6 +186,8 @@ The action writes a Markdown report to the job summary, sets `score`, `level` an
 | `json` | Automation, dashboards, custom checks. See [docs/report-schema.md](docs/report-schema.md). |
 | `sarif` | Code scanning and other SARIF consumers |
 
+SARIF results point at a Markdown report so Code Scanning can display them. Use `--sarif-location` to choose the path.
+
 ### Exit codes
 
 | Code | Meaning |

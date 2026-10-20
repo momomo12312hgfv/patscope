@@ -6,7 +6,16 @@ import { renderTerminal } from "./terminal";
 
 export type ReportFormat = "terminal" | "markdown" | "json" | "sarif";
 
-export function renderReport(report: Report, format: ReportFormat, color: boolean): string {
+export interface RenderOptions {
+  sarifLocation?: string;
+}
+
+export function renderReport(
+  report: Report,
+  format: ReportFormat,
+  color: boolean,
+  options: RenderOptions = {},
+): string {
   switch (format) {
     case "terminal":
       return renderTerminal(report, color);
@@ -15,7 +24,7 @@ export function renderReport(report: Report, format: ReportFormat, color: boolea
     case "json":
       return renderJson(report);
     case "sarif":
-      return renderSarif(report);
+      return renderSarif(report, { locationUri: options.sarifLocation });
     default:
       throw new Error(`Unsupported report format: ${String(format)}`);
   }

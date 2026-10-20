@@ -79,10 +79,20 @@ export async function runAction(options: RunActionOptions = {}): Promise<void> {
       offline: false,
     });
 
-    const output = renderReport(report, format, false);
-    await writeFile(outputFile, `${output}\n`, "utf8");
+    const markdown = renderReport(report, "markdown", false);
+    let output: string;
 
-    const markdown = format === "markdown" ? output : renderReport(report, "markdown", false);
+    if (format === "sarif") {
+      const markdownPath = /\.sarif$/i.test(outputFile)
+        ? outputFile.replace(/\.sarif$/i, ".md")
+        : `${outputFile}.md`;
+      await writeFile(markdownPath, `${markdown}\n`, "utf8");
+      output = renderReport(report, "sarif", false, { sarifLocation: markdownPath });
+    } else {
+      output = renderReport(report, format, false);
+    }
+
+    await writeFile(outputFile, `${output}\n`, "utf8");
     await appendSummary(markdown);
     if (!options.silent) {
       process.stdout.write(`${markdown}\n`);

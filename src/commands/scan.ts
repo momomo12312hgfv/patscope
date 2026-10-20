@@ -16,6 +16,7 @@ interface ScanCliOptions {
   login?: string;
   tokenType?: string;
   format: string;
+  sarifLocation: string;
   failOn?: string;
   color: boolean;
 }
@@ -59,6 +60,7 @@ export function registerScan(program: Command): void {
     .option("--login <login>", "login name to display in offline mode")
     .option("--token-type <type>", "override token type detection")
     .option("--format <format>", "output format: terminal, markdown, json or sarif", "terminal")
+    .option("--sarif-location <path>", "file path used for SARIF physical locations", "patscope-report.md")
     .option("--fail-on <severity>", "exit with code 2 when the score is at or above this severity")
     .option("--no-color", "disable ANSI colors")
     .action(async (options: ScanCliOptions) => {
@@ -128,7 +130,9 @@ export function registerScan(program: Command): void {
         options.format === "terminal" &&
         Boolean(process.stdout.isTTY);
 
-      process.stdout.write(`${renderReport(report, options.format, color)}\n`);
+      process.stdout.write(`${renderReport(report, options.format, color, {
+        sarifLocation: options.sarifLocation,
+      })}\n`);
 
       if (failOn && report.scoreKnown && severityAtLeast(report.score.level, failOn)) {
         process.exitCode = 2;

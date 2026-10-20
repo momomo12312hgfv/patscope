@@ -869,7 +869,7 @@ function ruleFor(capability) {
     }
   };
 }
-function resultFor(report, capability) {
+function resultFor(report, capability, locationUri) {
   return {
     ruleId: `patscope/${capability.id}`,
     level: sarifLevel(capability.severity),
@@ -878,6 +878,15 @@ function resultFor(report, capability) {
     },
     locations: [
       {
+        physicalLocation: {
+          artifactLocation: {
+            uri: locationUri
+          },
+          region: {
+            startLine: 1,
+            startColumn: 1
+          }
+        },
         logicalLocations: [
           {
             name: "GitHub token",
@@ -899,7 +908,8 @@ function resultFor(report, capability) {
     }
   };
 }
-function renderSarif(report) {
+function renderSarif(report, options = {}) {
+  const locationUri = (options.locationUri ?? "patscope-report.md").replace(/\\/g, "/");
   const sarif = {
     $schema: "https://json.schemastore.org/sarif-2.1.0.json",
     version: "2.1.0",
@@ -929,7 +939,7 @@ function renderSarif(report) {
           scoreKnown: report.scoreKnown,
           tokenType: report.token.type
         },
-        results: report.capabilities.map((capability) => resultFor(report, capability))
+        results: report.capabilities.map((capability) => resultFor(report, capability, locationUri))
       }
     ]
   };
@@ -1033,7 +1043,7 @@ function renderTerminal(report, color) {
 }
 
 // src/report/index.ts
-function renderReport(report, format, color) {
+function renderReport(report, format, color, options = {}) {
   switch (format) {
     case "terminal":
       return renderTerminal(report, color);
@@ -1042,7 +1052,7 @@ function renderReport(report, format, color) {
     case "json":
       return renderJson(report);
     case "sarif":
-      return renderSarif(report);
+      return renderSarif(report, { locationUri: options.sarifLocation });
     default:
       throw new Error(`Unsupported report format: ${String(format)}`);
   }
@@ -1501,10 +1511,18 @@ async function runAction(options = {}) {
       source: "github-action",
       offline: false
     });
-    const output = renderReport(report, format, false);
+    const markdown = renderReport(report, "markdown", false);
+    let output;
+    if (format === "sarif") {
+      const markdownPath = /\.sarif$/i.test(outputFile) ? outputFile.replace(/\.sarif$/i, ".md") : `${outputFile}.md`;
+      await import_promises.writeFile(markdownPath, `${markdown}
+`, "utf8");
+      output = renderReport(report, "sarif", false, { sarifLocation: markdownPath });
+    } else {
+      output = renderReport(report, format, false);
+    }
     await import_promises.writeFile(outputFile, `${output}
 `, "utf8");
-    const markdown = format === "markdown" ? output : renderReport(report, "markdown", false);
     await appendSummary(markdown);
     if (!options.silent) {
       process.stdout.write(`${markdown}

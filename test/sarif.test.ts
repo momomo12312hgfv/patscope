@@ -22,7 +22,9 @@ describe("SARIF output", () => {
           ruleId: string;
           level: string;
           message: { text: string };
-          locations: unknown[];
+          locations: Array<{
+            physicalLocation?: { artifactLocation?: { uri?: string } };
+          }>;
           partialFingerprints: Record<string, string>;
         }>;
         invocations: Array<{ executionSuccessful: boolean }>;
@@ -43,6 +45,9 @@ describe("SARIF output", () => {
     expect(result?.level).toBe("error");
     expect(result?.message.text).toContain("Granted by");
     expect(result?.locations).toHaveLength(1);
+    expect(result?.locations[0]?.physicalLocation?.artifactLocation?.uri).toBe(
+      "patscope-report.md",
+    );
     expect(result?.partialFingerprints["patscope/v1"]).toBe("code:write");
   });
 

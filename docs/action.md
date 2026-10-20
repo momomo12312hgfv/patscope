@@ -75,7 +75,7 @@ The token being scanned is separate. Prefer a dedicated token with the smallest 
 
 ## SARIF and code scanning
 
-`--format sarif` writes SARIF 2.1.0 with one rule per capability. Results use a logical location (`github.token`) rather than a fake source line.
+`--format sarif` writes SARIF 2.1.0 with one rule per capability. GitHub Code Scanning requires a physical location, so patscope points every result at a generated Markdown report next to the SARIF file. For a custom path, use the CLI flag `--sarif-location`.
 
 Upload the file with:
 

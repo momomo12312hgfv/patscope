@@ -98,12 +98,24 @@ describe("GitHub Action", () => {
 
     const sarif = JSON.parse(await readFile(join(tempDir, "report.sarif"), "utf8")) as {
       version: string;
-      runs: Array<{ results: Array<{ ruleId: string }> }>;
+      runs: Array<{
+        results: Array<{
+          ruleId: string;
+          locations: Array<{ physicalLocation: { artifactLocation: { uri: string } } }>;
+        }>;
+      }>;
     };
     expect(sarif.version).toBe("2.1.0");
     expect(sarif.runs[0]?.results.some((result) => result.ruleId === "patscope/code:write")).toBe(
       true,
     );
+    const result = sarif.runs[0]?.results.find((item) => item.ruleId === "patscope/code:write");
+    expect(result?.locations[0]?.physicalLocation.artifactLocation.uri).toBe(
+      join(tempDir, "report.md").replace(/\\/g, "/"),
+    );
+
+    const markdownReport = await readFile(join(tempDir, "report.md"), "utf8");
+    expect(markdownReport).toContain("# patscope report");
 
     const summary = await readFile(join(tempDir, "summary.md"), "utf8");
     expect(summary).toContain("Blast radius");

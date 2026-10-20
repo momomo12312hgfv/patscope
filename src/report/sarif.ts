@@ -28,7 +28,7 @@ function ruleFor(capability: (typeof CAPABILITY_DEFINITIONS)[number]) {
   };
 }
 
-function resultFor(report: Report, capability: Capability) {
+function resultFor(report: Report, capability: Capability, locationUri: string) {
   return {
     ruleId: `patscope/${capability.id}`,
     level: sarifLevel(capability.severity),
@@ -39,6 +39,15 @@ function resultFor(report: Report, capability: Capability) {
     },
     locations: [
       {
+        physicalLocation: {
+          artifactLocation: {
+            uri: locationUri,
+          },
+          region: {
+            startLine: 1,
+            startColumn: 1,
+          },
+        },
         logicalLocations: [
           {
             name: "GitHub token",
@@ -61,7 +70,12 @@ function resultFor(report: Report, capability: Capability) {
   };
 }
 
-export function renderSarif(report: Report): string {
+export interface SarifOptions {
+  locationUri?: string;
+}
+
+export function renderSarif(report: Report, options: SarifOptions = {}): string {
+  const locationUri = (options.locationUri ?? "patscope-report.md").replace(/\\/g, "/");
   const sarif = {
     $schema: "https://json.schemastore.org/sarif-2.1.0.json",
     version: "2.1.0",
@@ -91,7 +105,7 @@ export function renderSarif(report: Report): string {
           scoreKnown: report.scoreKnown,
           tokenType: report.token.type,
         },
-        results: report.capabilities.map((capability) => resultFor(report, capability)),
+        results: report.capabilities.map((capability) => resultFor(report, capability, locationUri)),
       },
     ],
   };
