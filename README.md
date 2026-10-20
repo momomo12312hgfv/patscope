@@ -73,6 +73,8 @@ chmod +x patscope-*
 sudo mv patscope-* /usr/local/bin/patscope
 ```
 
+The binaries are self-contained and include the Bun runtime, so they are roughly 60–85 MB.
+
 ### From source
 
 Requires [Bun](https://bun.sh) 1.2 or newer.
@@ -184,6 +186,14 @@ The score is a communication tool, not a CVSS replacement. Every finding include
 - Organization membership is read from `/user/orgs`; private memberships may be hidden.
 - Token expiry and creation dates are not available through the API.
 - The score is heuristic and should be used to start a conversation, not end one.
+
+## Roadmap
+
+- **v0.2** — fine-grained PAT permission probes, SARIF output, a reusable GitHub Action
+- **v0.3** — repository-level blast radius ("which repos can this token delete?"), token diffing
+- **v1.0** — stable JSON schema, organization and repository checks, signed releases
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Development
 
