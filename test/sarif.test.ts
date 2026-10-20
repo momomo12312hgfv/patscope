@@ -57,4 +57,23 @@ describe("SARIF output", () => {
     expect(output).not.toContain("ghp_");
     expect(output).not.toContain("github_pat_");
   });
+
+  test("uses a custom physical location", async () => {
+    const output = renderReport(await makeReport(), "sarif", false, {
+      sarifLocation: "custom/report.md",
+    });
+    const sarif = JSON.parse(output) as {
+      runs: Array<{
+        results: Array<{
+          locations: Array<{
+            physicalLocation?: { artifactLocation?: { uri?: string } };
+          }>;
+        }>;
+      }>;
+    };
+
+    expect(
+      sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation?.artifactLocation?.uri,
+    ).toBe("custom/report.md");
+  });
 });
