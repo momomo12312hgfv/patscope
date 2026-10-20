@@ -183,7 +183,7 @@ The action writes a Markdown report to the job summary, sets `score`, `level` an
 | --- | --- |
 | `terminal` | Human-readable scan (default) |
 | `markdown` | Paste into an issue, PR or report |
-| `json` | Automation, dashboards, custom checks |
+| `json` | Automation, dashboards, custom checks. See [docs/report-schema.md](docs/report-schema.md). |
 | `sarif` | Code scanning and other SARIF consumers |
 
 ### Exit codes
